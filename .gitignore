@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Env / secretos
+.env
+
+# macOS
+.DS_Store
+
+# Herramientas de agentes de IA — no versionar contenido no-oficial/no revisado
+# (ver skill devops-infra/gitignore-agent-tooling)
+.claude/
+.windsurf/
+.agents/
+.codeium/
+.cursor/
+skills-lock.json

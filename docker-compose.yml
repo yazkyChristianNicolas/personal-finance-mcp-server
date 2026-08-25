@@ -1,0 +1,22 @@
+services:
+  mcp-server:
+    build: .
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Nombres de servicio de la red de personal-finance-service (ver networks: abajo)
+      KEYCLOAK_REALM_URL: http://keycloak:8080/realms/personal-finance
+      KEYCLOAK_PUBLIC_URL: http://localhost:8080/realms/personal-finance
+      UPSTREAM_API_BASE_URL: http://api:3000
+    ports:
+      - "${MCP_PORT:-8000}:8000"
+    networks:
+      - personal-finance-service_default
+
+# Red externa del docker-compose de personal-finance-service — este stack
+# NO levanta Keycloak ni la API, se conecta a las que ya están corriendo ahí
+# (`docker compose up -d` en ese repo primero). Ver AGENTS.md.
+networks:
+  personal-finance-service_default:
+    external: true

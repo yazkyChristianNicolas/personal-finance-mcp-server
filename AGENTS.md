@@ -65,6 +65,33 @@ Reusa el realm `personal-finance` que ya trae `personal-finance-service`
 script imprime el `client_secret` del agente una única vez al final; copiarlo
 a `AGENT_CLIENT_SECRET` si vas a correr el agente headless.
 
+## Probar con un custom connector remoto real (Claude Desktop / claude.ai)
+
+Claude se conecta **desde la nube de Anthropic**, no desde tu máquina — ni
+`localhost` ni una red privada sirven. Para probar en dev sin desplegar en
+ningún lado:
+
+1. Túnel público para el MCP: `cloudflared tunnel --url http://localhost:8000`
+   → actualizar `SERVER_URL` en `.env` con la URL que imprime, reiniciar
+   (`docker compose up -d`).
+2. **También** hace falta un túnel para Keycloak — el canje de código→token
+   de un custom connector remoto lo hace la nube de Anthropic, no el browser
+   local, así que `token_endpoint`/`jwks_uri` tienen que ser públicos
+   también: `cloudflared tunnel --url http://localhost:8080` → actualizar
+   `KEYCLOAK_PUBLIC_URL` acá (`docker-compose.yml`, o `.env`) **y**
+   `KC_HOSTNAME`/`KEYCLOAK_ISSUER_URL` en `personal-finance-service` (deben
+   apuntar a la MISMA URL del túnel de Keycloak, si no el `issuer` del
+   discovery document no coincide con el `iss` real del JWT).
+3. Custom connector en Claude: URL `https://<túnel-mcp>/mcp`, Client ID
+   `mcp-personal-finance-client`, sin secret.
+
+Los túneles gratuitos de Cloudflare (`trycloudflare.com`) son efímeros — la
+URL cambia cada vez que se reinicia `cloudflared`, y la conexión se cae sola
+si la máquina se suspende. Hay que resincronizar las 3 variables de arriba
+cada vez que eso pase. **No dejar ninguno de estos cambios commiteado** —
+son puramente para probar en dev, revertir `KC_HOSTNAME`/`KEYCLOAK_ISSUER_URL`/
+`KEYCLOAK_PUBLIC_URL` a `localhost` apenas termine la prueba.
+
 ## Conventions this repo follows
 
 - **Skills**: `remote-mcp-keycloak` (estructura del proyecto, auth), `swagger-to-mcp-tools`
@@ -102,6 +129,17 @@ a `AGENT_CLIENT_SECRET` si vas a correr el agente headless.
   streaming no sigue. Verificado con un smoke test real (`docker build` +
   `curl`): boot limpio, `/health`/`/.well-known` en 200, `POST /mcp` sin
   token en 401 con `WWW-Authenticate` (sin 307 ni el error de TaskGroup).
+- **`transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False)`
+  en `register_mcp_lifespan()`** — sin esto, `POST /mcp` responde `421 Invalid
+  Host header` en cuanto el server corre detrás de cualquier proxy/túnel/load
+  balancer (el SDK solo permite `Host: localhost/127.0.0.1/::1` por default).
+  Encontrado probando un custom connector remoto real de Claude Desktop vía
+  túnel cloudflared.
+- **`CORSMiddleware` agregado después de `AuthMiddleware`** (en `main.py`) —
+  sin esto, el preflight `OPTIONS /mcp` de un cliente remoto (Claude
+  Desktop/claude.ai) recibe 401 de `AuthMiddleware` y el cliente lo ve como
+  fallo de red genérico ("Couldn't connect"), nunca llega a mostrar el login
+  de Keycloak. Encontrado en la misma prueba real de arriba.
 - **Reusa el realm `personal-finance` de `personal-finance-service`**, no
   un realm propio — decisión explícita para habilitar el passthrough del
   JWT humano (ver Patrón C arriba). Si algún día `personal-finance-service`

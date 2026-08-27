@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 from starlette.applications import Starlette
 from mcp.server.mcpserver import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 from src.config import Settings
 
 
@@ -28,8 +29,22 @@ def register_mcp_lifespan(app: Starlette, mcp: MCPServer) -> None:
     el server corre con más de un replica detrás de un load balancer) se pasa
     acá — en mcp>=2.0 es un parámetro de streamable_http_app()/run(), no del
     constructor de MCPServer.
+
+    transport_security con enable_dns_rebinding_protection=False: el SDK
+    auto-activa una validación de Host/Origin cuando no se pasa `host`
+    (default "127.0.0.1"), permitiendo solo Host: localhost/127.0.0.1/::1 —
+    cualquier deploy detrás de un reverse proxy/túnel/load balancer (Host
+    real distinto) recibe 421 "Invalid Host header". La auth real de este
+    server es el JWT de Keycloak (AuthMiddleware) — la protección de Host
+    del SDK es una capa extra pensada para un server MCP corriendo
+    directo en localhost sin proxy delante, no aplica acá.
     """
-    mcp_app = mcp.streamable_http_app(stateless_http=True)
+    mcp_app = mcp.streamable_http_app(
+        stateless_http=True,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False,
+        ),
+    )
     app.router.routes.extend(mcp_app.routes)
 
     existing_lifespan = app.router.lifespan_context

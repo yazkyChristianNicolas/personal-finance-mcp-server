@@ -1,0 +1,41 @@
+name: Development
+
+# Verify en cada PR; en push a `development`, además, construye la imagen una sola vez
+# (tree-<árbol de git>) y la despliega en el environment `development`.
+# production.yml promueve esa misma imagen al mergear a `main`.
+# Build y deploy: yazkyChristianNicolas/gh-workflows (container-image.yml, ver su README).
+on:
+  pull_request:
+  push:
+    branches: [development]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      # TODO: el repo todavía no tiene tests unitarios (tests/unit vacío). Cuando existan,
+      # sumar `pytest tests/unit`: hoy pytest sin tests sale con código 5 y rompería el pipeline.
+      - run: python -m compileall -q src
+
+  image:
+    needs: verify
+    if: github.event_name != 'pull_request'
+    uses: yazkyChristianNicolas/gh-workflows/.github/workflows/container-image.yml@main
+    with:
+      push-image: true
+      deploy: true
+      environment: development
+      compose-service: finance-mcp
+      tag-variable: FINANCE_MCP_TAG
+    secrets: inherit

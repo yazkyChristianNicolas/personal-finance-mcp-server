@@ -1,0 +1,22 @@
+name: Production
+
+# Promoción: al mergear `development` a `main` no se buildea nada. Se busca la imagen que ya
+# se construyó y probó en desarrollo para este mismo contenido (mismo árbol de git) y se
+# despliega en el environment `production`. Si no existe, el contenido no pasó por `development`.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  promote:
+    uses: yazkyChristianNicolas/gh-workflows/.github/workflows/promote-image.yml@main
+    with:
+      environment: production
+      compose-service: finance-mcp
+      tag-variable: FINANCE_MCP_TAG
+    secrets: inherit
